@@ -4,25 +4,18 @@ import shutil
 
 
 def init_dirs():
+    # Remove folder even if it has files in it
+
+    
     if os.path.exists('data/{}'.format(dataset)):
-        os.rmdir('data/{}'.format(dataset))
-    os.makedirs('data/{}'.format(dataset))
+        shutil.rmtree('data/{}'.format(dataset)) 
+    os.makedirs('data/{}/docsutf8'.format(dataset))
+    os.makedirs('data/{}/keys'.format(dataset))
 
-    if not os.path.exists('data/{}/docsutf8'.format(dataset)):
-        os.makedirs('data/{}/docsutf8'.format(dataset))
-
-    if not os.path.exists('data/{}/keys'.format(dataset)):
-        os.makedirs('data/{}/keys'.format(dataset))
-
-    if os.path.exists(f'data/{final_dataset}/docsutf8'):
-        os.rmdir(f'data/{final_dataset}/docsutf8')
-        os.makedirs(f'data/{final_dataset}/docsutf8')
+    if os.path.exists(f'data/{final_dataset}'):
+        shutil.rmtree(f'data/{final_dataset}')
     os.makedirs(f'data/{final_dataset}/docsutf8')
-
-    if os.path.exists(f'data/{final_dataset}/keys'):
-        os.rmdir(f'data/{final_dataset}/keys')
     os.makedirs(f'data/{final_dataset}/keys')
-
 
 
 
