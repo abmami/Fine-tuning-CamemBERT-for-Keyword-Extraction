@@ -25,7 +25,7 @@ Epochs: 1 , Learning Rate: 3e-5, Batch Size: 16, Optimizer: AdamW
 
 | Model | Validation F1-score | Validation Accuracy | Params | Size(Mb) |
 | --- | --- | --- | --- | --- | 
-| Prefinetuned CamemBERT | 0.9056 | 0.906 | 0.906 | 110M | 442 Mb |
+| Prefinetuned CamemBERT | 0.9056 | 0.906 | 110M | 442 Mb |
 | + Dynamic Quantization | 0.3253 | 0.453 | 110M | 186 Mb |
 
 - Fine-tuning CamemBERT for French keywords extraction.
