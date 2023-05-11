@@ -14,6 +14,10 @@ data/final-keys-dataset
 data/temp-keys-dataset
 runs
 venv
+tmp_trainer
+results
+lightning_logs
+trash
 blabla.md
 # C extensions
 *.so
