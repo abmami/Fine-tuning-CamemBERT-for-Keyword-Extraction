@@ -6,7 +6,6 @@ import shutil
 def init_dirs():
     # Remove folder even if it has files in it
 
-    
     if os.path.exists('data/{}'.format(dataset)):
         shutil.rmtree('data/{}'.format(dataset)) 
     os.makedirs('data/{}/docsutf8'.format(dataset))
@@ -76,7 +75,7 @@ def move_data():
 
 if __name__ == '__main__':
     with open('data/final_data.json') as f:
-        data = json.load(f)
+        data = json.load(f, ensure_ascii=False)
     dataset = 'temp-keys-dataset'
     final_dataset = 'final-keys-dataset'
     init_dirs()
