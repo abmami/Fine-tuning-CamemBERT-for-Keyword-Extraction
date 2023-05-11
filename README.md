@@ -25,8 +25,8 @@ Epochs: 1 , Learning Rate: 3e-5, Batch Size: 16, Optimizer: AdamW
 
 | Model | Validation F1-score | Validation | Accuracy | Params | Size(Mb) |
 | --- | --- | --- | --- | --- | --- |
-| Prefinetuned CamemBERT | 0.9056935985015315 | 0.906 | 0.906 | 110M | 442 Mb |
-| + Dynamic Quantization | 0.3253368690450495 | 0.453 | 110M | 186 Mb |
+| Prefinetuned CamemBERT | 0.9056 | 0.906 | 0.906 | 110M | 442 Mb |
+| + Dynamic Quantization | 0.3253 | 0.453 | 110M | 186 Mb |
 
 - Fine-tuning CamemBERT for French keywords extraction.
 
@@ -35,7 +35,7 @@ Epochs: 20, Learning Rate: 5e-5, Batch Size: 8, Optimizer: AdamW
 
 | Model | Training Loss | Training Accuracy | Validation Loss | Validation Accuracy | Params | Size(Mb) |
 | --- | --- | --- | --- | --- | --- | --- |
-| Finetuned CamemBERT | 0.001669629953348225 | 0.9996 | 0.09359 | 0.9859 | 110M | 419 Mb |
+| Finetuned CamemBERT | 0.0016 | 0.9996 | 0.09359 | 0.9859 | 110M | 419 Mb |
 | + Dynamic Quantization | - | - | 0.2880 | 0.9240 | 110M | 176 Mb |
 
 
