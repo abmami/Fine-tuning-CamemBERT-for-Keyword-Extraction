@@ -11,6 +11,8 @@ data/videos/[^.g]*
 resources/videos/[^.g]*
 dataset/playlist_*
 data/final-keys-dataset
+data/KEYS-DATASET/docsutf8/*.txt
+data/KEYS-DATASET/keys/*.key
 data/temp-keys-dataset
 runs
 venv
