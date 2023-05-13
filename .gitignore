@@ -15,6 +15,7 @@ data/temp-keys-dataset
 runs
 venv
 tmp_trainer
+notebooks/lightning_logs
 results
 lightning_logs
 trash
