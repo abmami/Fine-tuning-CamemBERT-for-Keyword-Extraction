@@ -17,7 +17,6 @@ def init_dirs():
     os.makedirs(f'data/{final_dataset}/keys')
 
 
-
 def generate_data():
     for playlist_id, playlist_data in data.items():
         for video_id, video_data in playlist_data.items():
