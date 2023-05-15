@@ -5,15 +5,15 @@ import spacy
 import pandas as pd
 import numpy as np
 import string, re
+from keybert import KeyBERT
+import argparse
+import time
 
-
-def init_dirs():
-    # Remove folder even if it has files in it
-
-    if os.path.exists('data/{}'.format(dataset)):
-        shutil.rmtree('data/{}'.format(dataset)) 
-    os.makedirs('data/{}/docsutf8'.format(dataset))
-    os.makedirs('data/{}/keys'.format(dataset))
+def init_dirs(temp_dataset,final_dataset):
+    if os.path.exists('data/{}'.format(temp_dataset)):
+        shutil.rmtree('data/{}'.format(temp_dataset)) 
+    os.makedirs('data/{}/docsutf8'.format(temp_dataset))
+    os.makedirs('data/{}/keys'.format(temp_dataset))
 
     if os.path.exists(f'data/{final_dataset}'):
         shutil.rmtree(f'data/{final_dataset}')
@@ -21,8 +21,7 @@ def init_dirs():
     os.makedirs(f'data/{final_dataset}/keys')
 
 
-
-def generate_data():
+def generate_data_files(data, dataset, final_dataset):
     for playlist_id, playlist_data in data.items():
         for video_id, video_data in playlist_data.items():
             transcript_sentences = video_data['transcript']
@@ -49,7 +48,6 @@ def generate_data():
             keywords = '\n'.join(keywords)
             categories = '\n'.join(categories)
 
-
             # combine keywords, chapter_titles, categories in one string
             keywords_categories = keywords + '\n' + categories + '\n' + chapter_titles
             video_d = {'transcript': transcript, 'keywords': keywords_categories}
@@ -62,8 +60,7 @@ def generate_data():
             with open('data/{}/keys/{}.key'.format(dataset, video_id), 'w') as f:
                 f.write(video_d['keywords'])
 
-
-def move_data():
+    # copy the files to the final dataset folder
     for filename in os.listdir('data/WKC/keys'):
         shutil.copy('data/WKC/keys/{}'.format(filename), 'data/{}/keys/{}'.format(final_dataset,filename))
 
@@ -76,19 +73,13 @@ def move_data():
     for filename in os.listdir('data/{}/keys'.format(dataset)):
         shutil.copy('data/{}/keys/{}'.format(dataset, filename), 'data/{}/keys/{}'.format(final_dataset,filename))
 
-def save_sets(path):
-    """
-    Load txt files and their corresponding keywords into a dict then split it into train, validation and test sets
-    """
-    
+
+
+def save_sets(path, use_keybert=False):
+
     # Load the txt files
     txt_files = sorted(os.listdir(path + "/docsutf8"))
     txt_files = [file for file in txt_files if file.endswith(".txt")]
-                 
-    # Load the keywords files
-    keys_files = sorted(os.listdir(path + "/keys"))
-    keys_files = [file for file in keys_files if file.endswith(".key")]
-
     dataset = {"text": [], "keywords": []}
     # download the spacy fr model using the command "python -m spacy download fr_core_news_sm"
     nlp = spacy.load("fr_core_news_sm")
@@ -98,57 +89,93 @@ def save_sets(path):
         text = open(path + "/docsutf8/" + txt_file, "r", encoding="utf-8").read()
 
         # preprocess the text
-        text = text.replace("\n", "")
-        text = text.replace("\t", "")
-        text = text.replace("  ", " ")
-        # remove the extra spaces
-        text = text.strip()
-        #text = re.sub(r"['\"]", "", text) # remove single and double quotes
-
-        dataset["text"].append(text)
-        keywords = open(path + "/keys/" + txt_file[:-4] + ".key", "r", encoding="utf-8").read().split("\n")
-        # preprocess the keywords
-        # remove the empty keywords
-        keywords = [keyword for keyword in keywords if keyword != ""]
-        # remove the extra spaces
-        keywords = [keyword.strip() for keyword in keywords]
-        # remove the duplicates
-        keywords = list(set(keywords))
-        # load spacy fr model and remove the stopwords
-        keywords = [keyword for keyword in keywords if keyword not in nlp.Defaults.stop_words]
-        # remove punctuation using string.punctuation
-        keywords = [keyword for keyword in keywords if keyword not in string.punctuation]
+        text = text.replace("\n", "").replace("\t", "").replace("  ", " ").strip()
+        if use_keybert:
+            chunk_size = 256
+            if len(text) > chunk_size:
+                chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+                for chunk in chunks:
+                    dataset["text"].append(chunk)
+                    dataset["keywords"].append([])
+            else:
+                dataset["text"].append(text)
+                dataset["keywords"].append([])
+        else:
+            dataset["text"].append(text)
         
-        dataset["keywords"].append(keywords)
-    
+        if not use_keybert:
+            # Load the keywords files
+            keys_files = sorted(os.listdir(path + "/keys"))
+            keys_files = [file for file in keys_files if file.endswith(".key")]
+            keywords = open(path + "/keys/" + txt_file[:-4] + ".key", "r", encoding="utf-8").read().split("\n")
+            # preprocess the keywords
+            # remove the empty keywords
+            keywords = [keyword for keyword in keywords if keyword != ""]
+            # remove the extra spaces
+            keywords = [keyword.strip() for keyword in keywords]
+            # remove the duplicates
+            keywords = list(set(keywords))
+            # load spacy fr model and remove the stopwords
+            keywords = [keyword for keyword in keywords if keyword not in nlp.Defaults.stop_words]
+            # remove punctuation using string.punctuation
+            keywords = [keyword for keyword in keywords if keyword not in string.punctuation]
+            
+            dataset["keywords"].append(keywords)
 
-    # save the dataset into a csv file
+
     dataset = pd.DataFrame(dataset)
-    dataset.to_csv("data/KEYS-DATASET/full-dataset.csv", index=False)
+    print(len(dataset))
 
-    # split dataframe into 80% train, 10% validation and 10% test
-    train_dataset, val_dataset, test_dataset = np.split(dataset.sample(frac=1, random_state=42), [int(.8*len(dataset)), int(.9*len(dataset))])
+    # Sometimes the keywords are not relevant, so we use keyBERT to extract the keywords
+    if use_keybert:
+
+        # extract the keywords for french text, get the top 5 keywords
+        model = KeyBERT("Geotrend/distilbert-base-en-fr-cased")
+        pre_dataset = dataset.copy()
+
+        # remove stop words and punctuation before extracting the keywords
+        pre_dataset["text"] = pre_dataset["text"].apply(lambda x: " ".join([word for word in x.split() if word not in nlp.Defaults.stop_words]))
+        pre_dataset["text"] = pre_dataset["text"].apply(lambda x: " ".join([word for word in x.split() if word not in string.punctuation]))
+        pre_dataset["keywords"] = pre_dataset["text"].apply(lambda x: [x[0] for x in model.extract_keywords(x, keyphrase_ngram_range=(1, 1), 
+                                  top_n=5, min_df=1, diversity=0.9, stop_words=None)])
+        
+    pre_dataset.to_csv("data/KEYS-DATASET/full-dataset.csv", index=False)
+    train_dataset, val_dataset, test_dataset = np.split(pre_dataset.sample(frac=1, random_state=42), [int(.8*len(pre_dataset)), int(.9*len(pre_dataset))])
+
+    pd.DataFrame(train_dataset).to_csv("data/KEYS-DATASET/train.csv", index=False)
+    pd.DataFrame(val_dataset).to_csv("data/KEYS-DATASET/dev.csv", index=False)
+    pd.DataFrame(test_dataset).to_csv("data/KEYS-DATASET/test.csv", index=False)
 
 
+def main():
+    start = time.time()
+    print("Generating dataset...")
+    parser = argparse.ArgumentParser(description='Generate dataset')
+    parser.add_argument('--use_keybert', type=bool, default=False, help='use keyBERT to extract keywords')
+    args = parser.parse_args()
+    use_keybert = args.use_keybert
+
+    # Load the data
+    with open('data/final_data.json') as f:
+        data = json.load(f)
     
-    train_dataset = pd.DataFrame(train_dataset)
-    train_dataset.to_csv("data/KEYS-DATASET/train.csv", index=False)
+    temp_dataset = 'temp-keys-dataset'
+    final_dataset = 'KEYS-DATASET'
+    
+    # Initialize the directories
+    init_dirs(temp_dataset,final_dataset)
 
-    val_dataset = pd.DataFrame(val_dataset)
-    val_dataset.to_csv("data/KEYS-DATASET/dev.csv", index=False)
+    # Generate the data
+    generate_data_files(data, temp_dataset, final_dataset)
 
-    test_dataset = pd.DataFrame(test_dataset)
-    test_dataset.to_csv("data/KEYS-DATASET/test.csv", index=False)
+    # Preprocess and save the data
+    save_sets('data/{}'.format(final_dataset), use_keybert=use_keybert)
+
+    print(f"Finished generating dataset at data/{final_dataset}")
+    print(f"Time taken: {time.time() - start} seconds")
 
 
 if __name__ == '__main__':
-    with open('data/final_data.json') as f:
-        data = json.load(f)
-    dataset = 'temp-keys-dataset'
-    final_dataset = 'KEYS-DATASET'
-    init_dirs()
-    generate_data()
-    move_data()
-    save_sets('data/{}'.format(final_dataset))
+    main()
 
-    print(f"Finished generating dataset at data/{final_dataset}")
+  
