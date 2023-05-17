@@ -16,42 +16,35 @@ from datasets import Dataset
 import numpy as np
 import random
 import warnings
-
-from sentence_similiarity import model as ss_model
-
-# Do inference for Sentence Similarity Task using saved model at models/ss
-
-def run_inference(task_name, sentences, quantized):
-    if task_name == "ss":
-        model = ss_model.SSLightningModel("camembert-base", 2, lr=3e-5, weight_decay=0., from_scratch=False)   
-        model.to('cuda')
-        inference = model.inference(sentence_1=sentences[0], sentence_2=sentences[1])
-        return inference
-
-    elif task_name == "ke":
-        pass
-    else:
-        raise ValueError("Unknown task name")
-    
-
 import argparse
 import time
 
+from sentence_similiarity import model as ss_model
+from utils import *
+
+# inference using command line
+def run_inference(sentences):
+    model_name = "camembert-base"
+    num_labels = 2
+    lr = models['ss']['lr']
+    weight_decay = models['ss']['weight_decay']
+    max_length = models['ss']['max_length']
+    from_scratch = False # for inference we load local model
+    model = ss_model.SSLightningModel(model_name, num_labels, lr, weight_decay, max_length, from_scratch=from_scratch)
+    model.to('cuda')
+    inference = model.inference(sentence_1=sentences[0], sentence_2=sentences[1])
+    return inference
+
+
 def main():
     parser = argparse.ArgumentParser(description='Inference on a task')
-    parser.add_argument('--task', type=str, default="ss",help='task name')
-    parser.add_argument('--quantized', type=bool, default=False, help='use quantized model')
     parser.add_argument('--sentence1', type=str, default="Le chat est sur le tapis.", help='sentence 1 to run inference on')
     parser.add_argument('--sentence2', type=str, default="Le chien est sur le canapé.", help='sentence 2 to run inference on')
-
     args = parser.parse_args()
     sentences = [args.sentence1, args.sentence2]
-    sentences = [
-    "La NVIDIA TITAN V a été annoncé officiellement par Nvidia le 7 décembre 2017.",
-    "Le 7 décembre 2017 NVIDIA a officiellement annoncé le lancement de la Nvidia TITAN V."
-    ]
+
     time_start = time.time()
-    predicted_label = run_inference(args.task, sentences, args.quantized)
+    predicted_label = run_inference(sentences)
     time_end = time.time()
     print("Time taken: {} seconds".format(time_end-time_start))
     print(sentences)

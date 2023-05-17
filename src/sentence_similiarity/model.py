@@ -31,17 +31,17 @@ class SSLightningModel(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         if from_scratch:
-            model_path = models["models_folder"] + "ss" 
-            config = AutoConfig.from_pretrained(model_path)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-            self.model = AutoModelForSequenceClassification.from_config(config).to("cuda")
-            self.config = config
-        else:
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 model_name, num_labels=num_labels
             ).to("cuda")
             self.config = self.model.config
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        else:
+            model_path = models["models_folder"] + "ss" 
+            config = AutoConfig.from_pretrained(model_path)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+            self.model = AutoModelForSequenceClassification.from_config(config).to("cuda")
+            self.config = config
         self.lr = lr
         self.weight_decay = weight_decay
         self.num_labels = self.model.num_labels
@@ -114,8 +114,8 @@ def run_trainer(train_dataloader, val_dataloader, test_dataloader, from_scratch=
     weight_decay = models['ss']['weight_decay']
     max_length = models['ss']['max_length']
     accumulate_grad_batches = models['ss']['accumulate_grad_batches']
-
-    model = SSLightningModel(model_name, num_labels, lr, weight_decay, max_length, from_scratch=False)
+    from_scratch = True # will be removed later
+    model = SSLightningModel(model_name, num_labels, lr, weight_decay, max_length, from_scratch=from_scratch)
     model_checkpoint = pl.callbacks.ModelCheckpoint(monitor="valid/acc", mode="max")
     callbacks=[
         pl.callbacks.EarlyStopping(monitor="valid/acc", patience=4, mode="max"),
