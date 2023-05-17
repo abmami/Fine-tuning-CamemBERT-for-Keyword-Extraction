@@ -18,29 +18,21 @@ import random
 import warnings
 warnings.filterwarnings("ignore")
 
-# Set the random seed for reproducibility
-torch.manual_seed(42)
-np.random.seed(42)
-random.seed(42)
-pl.trainer.seed_everything(42)
-
-
 from utils import data
 
-### Sentence Similarity Task
-
 class SSDataModule(pl.LightningDataModule):
-    def __init__(self, data, tokenizer, batch_size=16):
+    def __init__(self, data, tokenizer, batch_size, max_length):
         super().__init__()
         self.data = data
         self.tokenizer = tokenizer
         self.batch_size = batch_size
+        self.max_length = max_length
 
     def setup(self, stage=None):
         # Get the datasets:
-        train = pd.read_csv(self.data['train'], delimiter='\t', on_bad_lines='skip')
-        dev = pd.read_csv(self.data['dev'], delimiter='\t', on_bad_lines='skip')
-        test = pd.read_csv (self.data['test'], delimiter='\t', on_bad_lines='skip')
+        train = pd.read_csv(self.data['data_folder'] + self.data['PAWS-C-FR']['train'], delimiter='\t', on_bad_lines='skip')
+        dev = pd.read_csv(self.data['data_folder'] + self.data['PAWS-C-FR']['dev'], delimiter='\t', on_bad_lines='skip')
+        test = pd.read_csv (self.data['data_folder'] + self.data['PAWS-C-FR']['test'], delimiter='\t', on_bad_lines='skip')
 
         train.drop(columns=['id'], inplace=True)
         dev.drop(columns=['id'], inplace=True)
@@ -55,7 +47,6 @@ class SSDataModule(pl.LightningDataModule):
         #dev = dev.sample(frac=0.05, random_state=42)
         #test = test.sample(frac=0.05, random_state=42)
 
-
         train['label'] = train['label'].astype(int)
         dev['label'] = dev['label'].astype(int)
         test['label'] = test['label'].astype(int)
@@ -69,7 +60,7 @@ class SSDataModule(pl.LightningDataModule):
         labels = torch.tensor([sample["label"] for sample in samples])
         str_labels = [sample["label"] for sample in samples]
         text = [[str(x), str(y)] for x,y in zip(sentence_1, sentence_2)]
-        tokens = self.tokenizer(text, return_tensors="pt", padding='max_length', max_length = 128, truncation=True)
+        tokens = self.tokenizer(text, return_tensors="pt", padding='max_length', max_length = self.max_length, truncation=True)
 
         return {"input_ids": tokens.input_ids, "attention_mask": tokens.attention_mask, "labels": labels, "str_labels": str_labels, "sentences": text}
     
@@ -92,10 +83,10 @@ class SSDataModule(pl.LightningDataModule):
         return self.loader(self.test_dataset, self.batch_size, shuffle=False)
 
 
-def load_ss(batch_size=16):
+def load_ss(batch_size=16, max_length=128):
     tokenizer = AutoTokenizer.from_pretrained('camembert-base')
     batch_size = batch_size
-    ss_data_module = SSDataModule(data['PAWS-C-FR'], tokenizer, batch_size=batch_size)
+    ss_data_module = SSDataModule(data, tokenizer, batch_size=batch_size, max_length=max_length)
     ss_data_module.setup()
     train_dataloader = ss_data_module.train_dataloader()
     val_dataloader = ss_data_module.val_dataloader()

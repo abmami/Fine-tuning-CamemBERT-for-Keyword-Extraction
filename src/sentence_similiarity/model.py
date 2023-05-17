@@ -24,15 +24,16 @@ np.random.seed(42)
 random.seed(42)
 pl.trainer.seed_everything(42)
 
-
+from utils import models, data
 
 class SSLightningModel(pl.LightningModule):
-    def __init__(self, model_name, num_labels, lr, weight_decay, from_scratch=False):
+    def __init__(self, model_name, num_labels, lr, weight_decay,max_length, from_scratch):
         super().__init__()
         self.save_hyperparameters()
         if from_scratch:
-            config = AutoConfig.from_pretrained("../models/ss")
-            self.tokenizer = AutoTokenizer.from_pretrained("../models/ss")
+            model_path = models["models_folder"] + "ss" 
+            config = AutoConfig.from_pretrained(model_path)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
             self.model = AutoModelForSequenceClassification.from_config(config).to("cuda")
             self.config = config
         else:
@@ -44,6 +45,7 @@ class SSLightningModel(pl.LightningModule):
         self.lr = lr
         self.weight_decay = weight_decay
         self.num_labels = self.model.num_labels
+        self.max_length = max_length
 
     def forward(self, batch):
         return self.model(
@@ -96,31 +98,24 @@ class SSLightningModel(pl.LightningModule):
 
     def inference(self, sentence_1, sentence_2):
         text = [[str(x), str(y)] for x,y in zip([sentence_1], [sentence_2])]
-        tokens = self.tokenizer(text, return_tensors="pt", padding='max_length', max_length = 128, truncation=True)
+        tokens = self.tokenizer(text, return_tensors="pt", padding='max_length', max_length = self.max_length, truncation=True)
         out = self.model(**tokens.to('cuda'))
         preds = torch.max(out.logits, -1).indices
         return preds.detach().cpu().numpy()[0]
     
 
-
-
-def run_trainer(train_dataloader, val_dataloader, test_dataloader, epochs, lr, weight_decay, from_scratch):
+def run_trainer(train_dataloader, val_dataloader, test_dataloader, from_scratch=False) :
     print("Running task: ss")
 
     model_name = "camembert-base"
     num_labels = 2
+    epochs = models['ss']['epochs']
+    lr = models['ss']['lr']
+    weight_decay = models['ss']['weight_decay']
+    max_length = models['ss']['max_length']
+    accumulate_grad_batches = models['ss']['accumulate_grad_batches']
 
-    if epochs is None:
-        epochs = 1
-
-    if lr is None:
-        lr = 3e-5
-
-    if weight_decay is None:
-        weight_decay = 0.
-    
-
-    model = SSLightningModel(model_name, num_labels, lr, weight_decay, from_scratch=True)
+    model = SSLightningModel(model_name, num_labels, lr, weight_decay, max_length, from_scratch=False)
     model_checkpoint = pl.callbacks.ModelCheckpoint(monitor="valid/acc", mode="max")
     callbacks=[
         pl.callbacks.EarlyStopping(monitor="valid/acc", patience=4, mode="max"),
@@ -131,7 +126,7 @@ def run_trainer(train_dataloader, val_dataloader, test_dataloader, epochs, lr, w
         max_epochs=epochs,
         accelerator="gpu", devices="auto",
         callbacks=callbacks,
-        accumulate_grad_batches=8
+        accumulate_grad_batches=accumulate_grad_batches
     )
     
     trainer.fit(model, train_dataloader, val_dataloader)
