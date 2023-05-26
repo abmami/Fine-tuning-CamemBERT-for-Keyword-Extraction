@@ -9,26 +9,15 @@ from keybert import KeyBERT
 import argparse
 import time
 
-def init_dirs(temp_dataset,final_dataset):
-    if os.path.exists('data/{}'.format(temp_dataset)):
-        shutil.rmtree('data/{}'.format(temp_dataset)) 
-    os.makedirs('data/{}/docsutf8'.format(temp_dataset))
-    os.makedirs('data/{}/keys'.format(temp_dataset))
 
-    if os.path.exists(f'data/{final_dataset}'):
-        shutil.rmtree(f'data/{final_dataset}')
-    os.makedirs(f'data/{final_dataset}/docsutf8')
-    os.makedirs(f'data/{final_dataset}/keys')
-
-
-def generate_data_files(data, dataset, final_dataset):
+def generate_files(data, dataset_path):
     for playlist_id, playlist_data in data.items():
         for video_id, video_data in playlist_data.items():
             transcript_sentences = video_data['transcript']
+            
             # concat all sentences in one string
             transcript = ' '.join([sentence['text'] for sentence in transcript_sentences.values()])
             # get keywords
-
             keywords = video_data['tags']
             categories = video_data['categories']
             chapters = video_data['chapters']
@@ -53,29 +42,16 @@ def generate_data_files(data, dataset, final_dataset):
             video_d = {'transcript': transcript, 'keywords': keywords_categories}
 
             # save transcript and keywords in text and keys folders
-
-            with open('data/{}/docsutf8/{}.txt'.format(dataset, video_id), 'w') as f:
+            with open('{}/docsutf8/{}.txt'.format(dataset_path, video_id), 'w') as f:
                 f.write(video_d['transcript'])
             
-            with open('data/{}/keys/{}.key'.format(dataset, video_id), 'w') as f:
+            with open('{}/keys/{}.key'.format(dataset_path, video_id), 'w') as f:
                 f.write(video_d['keywords'])
 
-    # copy the files to the final dataset folder
-    for filename in os.listdir('data/WKC/keys'):
-        shutil.copy('data/WKC/keys/{}'.format(filename), 'data/{}/keys/{}'.format(final_dataset,filename))
-
-    for filename in os.listdir('data/WKC/docsutf8'.format(dataset)):
-        shutil.copy('data/WKC/docsutf8/{}'.format(filename), 'data/{}/docsutf8/{}'.format(final_dataset,filename))
-
-    for filename in os.listdir('data/{}/docsutf8'.format(dataset)):
-        shutil.copy('data/{}/docsutf8/{}'.format(dataset, filename), 'data/{}/docsutf8/{}'.format(final_dataset,filename))
-
-    for filename in os.listdir('data/{}/keys'.format(dataset)):
-        shutil.copy('data/{}/keys/{}'.format(dataset, filename), 'data/{}/keys/{}'.format(final_dataset,filename))
+    print('Finished generating files')
 
 
-
-def save_sets(path, use_keybert=False):
+def save_sets(path, use_keybert=False,split=True):
 
     # Load the txt files
     txt_files = sorted(os.listdir(path + "/docsutf8"))
@@ -90,6 +66,8 @@ def save_sets(path, use_keybert=False):
 
         # preprocess the text
         text = text.replace("\n", "").replace("\t", "").replace("  ", " ").strip()
+
+        # Chunk the text into 256 characters chunks for keyBERT
         if use_keybert:
             chunk_size = 256
             if len(text) > chunk_size:
@@ -122,9 +100,7 @@ def save_sets(path, use_keybert=False):
             
             dataset["keywords"].append(keywords)
 
-
     dataset = pd.DataFrame(dataset)
-    print(len(dataset))
 
     # Sometimes the keywords are not relevant, so we use keyBERT to extract the keywords
     if use_keybert:
@@ -138,41 +114,75 @@ def save_sets(path, use_keybert=False):
         pre_dataset["text"] = pre_dataset["text"].apply(lambda x: " ".join([word for word in x.split() if word not in string.punctuation]))
         pre_dataset["keywords"] = pre_dataset["text"].apply(lambda x: [x[0] for x in model.extract_keywords(x, keyphrase_ngram_range=(1, 1), 
                                   top_n=5, min_df=1, diversity=0.9, stop_words=None)])
-        
-    pre_dataset.to_csv("data/KEYS-DATASET/full-dataset.csv", index=False)
-    train_dataset, val_dataset, test_dataset = np.split(pre_dataset.sample(frac=1, random_state=42), [int(.8*len(pre_dataset)), int(.9*len(pre_dataset))])
+        dataset = pre_dataset.copy()
+    
+    dataset.to_csv(os.path.join(path, "full-dataset.csv"), index=False)
 
-    pd.DataFrame(train_dataset).to_csv("data/KEYS-DATASET/train.csv", index=False)
-    pd.DataFrame(val_dataset).to_csv("data/KEYS-DATASET/dev.csv", index=False)
-    pd.DataFrame(test_dataset).to_csv("data/KEYS-DATASET/test.csv", index=False)
+    # Generate the train, validation and test sets
+    if split:
+        train_dataset, val_dataset, test_dataset = np.split(dataset.sample(frac=1, random_state=42), [int(.8*len(dataset)), int(.9*len(dataset))])
+        pd.DataFrame(train_dataset).to_csv(os.path.join(path, "train.csv"), index=False)
+        pd.DataFrame(val_dataset).to_csv(os.path.join(path, "val.csv"), index=False)
+        pd.DataFrame(test_dataset).to_csv(os.path.join(path, "test.csv"), index=False)
+
+        print("Train set: {} samples".format(len(train_dataset)))
+        print("Validation set: {} samples".format(len(val_dataset)))
+        print("Test set: {} samples".format(len(test_dataset)))
 
 
 def main():
-    start = time.time()
-    print("Generating dataset...")
+
     parser = argparse.ArgumentParser(description='Generate dataset')
     parser.add_argument('--use_keybert', type=bool, default=False, help='use keyBERT to extract keywords')
     args = parser.parse_args()
     use_keybert = args.use_keybert
+    start = time.time()
+    print("Generating datasets...")
 
-    # Load the data
-    with open('data/final_data.json') as f:
+    # Change directory to root directory
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.chdir(root_dir)
+
+    # Load config file
+    with open('config.json') as f:
+        config = json.load(f)
+
+    # Load config params
+    data_path = config['data']['data_folder']
+    KE_dataset_name = config['data']['KE_DATASET']['name']
+
+    # Initialize the directories
+    dataset_path = os.path.join(data_path, KE_dataset_name)
+    if os.path.exists(dataset_path):
+        shutil.rmtree(dataset_path)
+    os.makedirs(os.path.join(dataset_path, 'docsutf8'))
+    os.makedirs(os.path.join(dataset_path, 'keys'))
+    print("The dataset will be generated in {}".format(dataset_path))
+          
+    # Set this to True if you want to use the WKC dataset
+    use_WKC = True 
+    if use_WKC:
+        # Copy files in docsutf8 of WKC to docsutf8 of dataset_path
+        for file in os.listdir(os.path.join(data_path, 'WKC/docsutf8')):
+            shutil.copy(os.path.join(data_path, 'WKC/docsutf8', file), os.path.join(dataset_path, 'docsutf8', file))
+        
+        # Copy files in keys of WKC to keys of dataset_path
+        for file in os.listdir(os.path.join(data_path, 'WKC/keys')):
+            shutil.copy(os.path.join(data_path, 'WKC/keys', file), os.path.join(dataset_path, 'keys', file))
+        
+        print("Copied files from WKC to", dataset_path)
+
+    # Load our custom dataset
+    with open(os.path.join(data_path, 'final_data.json')) as f:
         data = json.load(f)
     
-    temp_dataset = 'temp-keys-dataset'
-    final_dataset = 'KEYS-DATASET'
-    
-    # Initialize the directories
-    init_dirs(temp_dataset,final_dataset)
-
     # Generate the data
-    generate_data_files(data, temp_dataset, final_dataset)
+    generate_files(data, dataset_path)
 
     # Preprocess and save the data
-    save_sets('data/{}'.format(final_dataset), use_keybert=use_keybert)
+    save_sets(dataset_path, use_keybert=use_keybert)
 
-    print(f"Finished generating dataset at data/{final_dataset}")
-    print(f"Time taken: {time.time() - start} seconds")
+    print("Finished generating dataset at", dataset_path, "in", str(time.time() - start)[:5], "seconds")
 
 
 if __name__ == '__main__':
