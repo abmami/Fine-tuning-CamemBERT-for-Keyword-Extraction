@@ -12,13 +12,13 @@
       "name": "KEYS-DATASET",
       "task": "ke",
       "train": "KEYS-DATASET/train.csv",
-      "dev": "KEYS-DATASET/dev.csv",
+      "dev": "KEYS-DATASET/val.csv",
       "test": "KEYS-DATASET/test.csv"
     }
   },
 
   "models": {
-    "models_folder": "../models/",
+    "models_folder": "models/",
     "ss": {
       "model_name": "camembert-base",
       "epochs": 1,
@@ -31,7 +31,7 @@
 
     "ke": {
       "model_name": "camembert-base",
-      "epochs": 3,
+      "epochs": 4,
       "lr": 2e-5,
       "batch_size": 4,
       "accumulate_grad_batches": 8,

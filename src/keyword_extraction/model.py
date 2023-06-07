@@ -1,24 +1,41 @@
 import torch
 import lightning.pytorch as pl
-from transformers import AutoModelForTokenClassification
+from transformers import AutoModelForTokenClassification, AutoTokenizer, AutoConfig,AutoModelForSequenceClassification
 import torch
 import lightning.pytorch as pl
 from transformers import AutoTokenizer
 from sklearn.metrics import f1_score
 import pandas as pd
 from torch.optim import Adam
-
+from utils import data, models
 class KELightningModel(pl.LightningModule):
-    def __init__(self, num_labels, model_name="camembert-base", max_length=256):
+    def __init__(self, cfg, from_scratch):
         super().__init__()
         self.save_hyperparameters()
-        self.model_name = model_name
-        self.max_length = max_length
-        self.num_labels = num_labels
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)       
-        self.model = AutoModelForTokenClassification.from_pretrained(model_name, num_labels=self.num_labels)
-        self.config = self.model.config
-        
+        self.model_name = cfg["model_name"]
+        self.max_length = cfg["max_length"]
+        self.num_labels = cfg["num_labels"]
+        self.lr = cfg["lr"]
+        self.betas = eval(cfg["betas"])
+        self.eps = cfg["eps"]
+
+        if from_scratch:
+            self.model = AutoModelForTokenClassification.from_pretrained(
+                self.model_name, num_labels=self.num_labels
+            ).to("cuda")
+            self.config = self.model.config
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            
+        else:
+            model_path = cfg["models_folder"] + "ke/"
+            # load model from pt file
+            self.model = AutoModelForTokenClassification.from_pretrained(model_path).to("cuda")
+            # load tokenizer from folder
+            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+            # load config from folder
+            self.config = AutoConfig.from_pretrained(model_path)
+            
+
 
     def forward(self, input_ids, attention_mask, labels):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
@@ -41,7 +58,6 @@ class KELightningModel(pl.LightningModule):
         self.log('val_loss', loss)
         self.log('val_acc', acc)
         self.log('val_f1', f1)
-        
     
         return loss
 
@@ -56,14 +72,13 @@ class KELightningModel(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        #return AdamW(self.parameters(), lr=5e-5)
-        return Adam(self.parameters(), lr=2e-5, eps=1e-08, betas=(0.9, 0.999))
+        return Adam(self.parameters(), lr=self.lr, eps=self.eps, betas=self.betas)
     
     def infer(self, text):
         tokens = self.tokenizer.tokenize(text,truncation=True, padding=True, max_length=self.max_length)
         input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
         attention_mask = [1] * len(input_ids)
-        outputs = self.model(torch.tensor([input_ids]), torch.tensor([attention_mask]))
+        outputs = self.model(torch.tensor([input_ids]).to('cuda'), torch.tensor([attention_mask]).to('cuda'))
         return outputs.logits.argmax(-1)
     
     def save_pretrained(self, path):
@@ -72,11 +87,15 @@ class KELightningModel(pl.LightningModule):
         self.config.save_pretrained(path)
     
 
-def run_trainer(train_dataloader, val_dataloader, test_dataloader, epochs=1, lr=2e-5, max_length=256):
+def run_trainer(train_dataloader, val_dataloader, test_dataloader, config, from_scratch):
     print("Running task: ke")
-    
-    model = KELightningModel(num_labels=3, model_name="camembert-base", max_length=max_length)
-    trainer = pl.Trainer(accelerator='auto', max_epochs=1, devices=[0], accumulate_grad_batches=8)
+    epochs = config['models']['ke']['epochs']
+    accumulate_grad_batches = config['models']['ke']['accumulate_grad_batches']
+    cfg = config['models']['ke']
+    cfg.update({"models_folder": config['models']['models_folder'], "num_labels": 3, "model_name": "camembert-base"})
+
+    model = KELightningModel(cfg, from_scratch)
+    trainer = pl.Trainer(accelerator='auto', max_epochs=epochs, devices=[0], accumulate_grad_batches=accumulate_grad_batches)
     trainer.fit(model, train_dataloader, val_dataloader)
     trainer.test(model, test_dataloader)
 

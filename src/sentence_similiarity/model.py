@@ -1,18 +1,7 @@
-from pprint import pprint
-import functools
 import torch
-from torch.utils.data import DataLoader
-import torch.nn.functional as F
 import lightning.pytorch as pl
-from transformers import AutoModelForSequenceClassification, CamembertForMaskedLM, AutoTokenizer, AutoConfig
-from datasets import load_dataset
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoConfig
 from sklearn.metrics import f1_score
-import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly.express as px
-from tqdm.notebook import tqdm
-import pandas as pd
-from datasets import Dataset
 import numpy as np
 import random
 import warnings
@@ -24,28 +13,29 @@ np.random.seed(42)
 random.seed(42)
 pl.trainer.seed_everything(42)
 
-from utils import models, data
 
 class SSLightningModel(pl.LightningModule):
-    def __init__(self, model_name, num_labels, lr, weight_decay,max_length, from_scratch):
+    def __init__(self, cfg, from_scratch):
         super().__init__()
         self.save_hyperparameters()
+        self.model_name = cfg["model_name"]
+
         if from_scratch:
             self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_name, num_labels=num_labels
+                self.model_name, num_labels=self.num_labels
             ).to("cuda")
             self.config = self.model.config
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         else:
-            model_path = models["models_folder"] + "ss" 
+            model_path = cfg["models_folder"] + "ss/"
             config = AutoConfig.from_pretrained(model_path)
             self.tokenizer = AutoTokenizer.from_pretrained(model_path)
             self.model = AutoModelForSequenceClassification.from_config(config).to("cuda")
             self.config = config
-        self.lr = lr
-        self.weight_decay = weight_decay
+        self.lr = cfg["lr"]
+        self.weight_decay = cfg["weight_decay"]
         self.num_labels = self.model.num_labels
-        self.max_length = max_length
+        self.max_length = cfg["max_length"]
 
     def forward(self, batch):
         return self.model(
@@ -104,18 +94,14 @@ class SSLightningModel(pl.LightningModule):
         return preds.detach().cpu().numpy()[0]
     
 
-def run_trainer(train_dataloader, val_dataloader, test_dataloader, from_scratch=False) :
+def run_trainer(train_dataloader, val_dataloader, test_dataloader, config, from_scratch=False) :
     print("Running task: ss")
 
-    model_name = "camembert-base"
-    num_labels = 2
-    epochs = models['ss']['epochs']
-    lr = models['ss']['lr']
-    weight_decay = models['ss']['weight_decay']
-    max_length = models['ss']['max_length']
-    accumulate_grad_batches = models['ss']['accumulate_grad_batches']
     from_scratch = True # will be removed later
-    model = SSLightningModel(model_name, num_labels, lr, weight_decay, max_length, from_scratch=from_scratch)
+    cfg = config['models']['ss']
+    cfg.update({"models_folder": config['models']['models_folder'], "num_labels": 2, "model_name": "camembert-base"})
+
+    model = SSLightningModel(cfg, from_scratch=from_scratch)
     model_checkpoint = pl.callbacks.ModelCheckpoint(monitor="valid/acc", mode="max")
     callbacks=[
         pl.callbacks.EarlyStopping(monitor="valid/acc", patience=4, mode="max"),
@@ -123,10 +109,10 @@ def run_trainer(train_dataloader, val_dataloader, test_dataloader, from_scratch=
     ]
 
     trainer = pl.Trainer(
-        max_epochs=epochs,
+        max_epochs=cfg['epochs'],
         accelerator="gpu", devices="auto",
         callbacks=callbacks,
-        accumulate_grad_batches=accumulate_grad_batches
+        accumulate_grad_batches=cfg['accumulate_grad_batches'],
     )
     
     trainer.fit(model, train_dataloader, val_dataloader)

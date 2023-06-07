@@ -8,8 +8,6 @@ import pandas as pd
 from datasets import Dataset
 from torch.utils.data import DataLoader, Dataset
 import os
-from utils import data
-
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ['TORCH_USE_CUDA_DSA'] = '1'
@@ -24,7 +22,7 @@ def preprocess(data):
 
 
 class KEDataModule(pl.LightningDataModule):
-    def __init__(self, train_csv, val_csv, test_csv, model_name, batch_size, max_length=256):
+    def __init__(self, train_csv, val_csv, test_csv, model_name, batch_size, max_length):
         super().__init__()
         self.train_csv = train_csv
         self.val_csv = val_csv
@@ -49,7 +47,7 @@ class KEDataModule(pl.LightningDataModule):
         return DataLoader(self.test_data, batch_size=self.batch_size)
 
 class KEDataset(Dataset):
-    def __init__(self, csv_file, tokenizer, max_length=256):
+    def __init__(self, csv_file, tokenizer, max_length):
         self.data = preprocess(pd.read_csv(csv_file))
         self.tokenizer = tokenizer
         self.max_length = max_length
@@ -95,16 +93,22 @@ class KEDataset(Dataset):
     
 
 
-def load_ke(batch_size=4):
+def load_ke(config):
     model_name = "camembert-base"
-    max_length = 256
-    xdata = data['KEYS-DATASET']
+    batch_size = config['models']['ke']['batch_size']
+    max_length = config['models']['ke']['max_length']
+    dpath = config['data']['data_folder']
+    train = dpath + config['data']['KE_DATASET']['train']
+    val = dpath + config['data']['KE_DATASET']['dev']
+    test = dpath + config['data']['KE_DATASET']['test']
 
-    ke_data_module = KEDataModule(xdata['train'], xdata['dev'], xdata['test'], model_name, batch_size, max_length)
+    ke_data_module = KEDataModule(train, val, test, model_name, batch_size, max_length)
     ke_data_module.setup()
+
     train_dataloader = ke_data_module.train_dataloader()
     val_dataloader = ke_data_module.val_dataloader()
     test_dataloader = ke_data_module.test_dataloader()
+    
     print("Train: ", len(train_dataloader.dataset))
     print("Val: ", len(val_dataloader.dataset))
     print("Test: ", len(test_dataloader.dataset))

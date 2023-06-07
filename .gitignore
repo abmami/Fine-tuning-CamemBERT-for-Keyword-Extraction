@@ -7,6 +7,7 @@ results.json
 cache_dir
 data/output.json
 resources/output.json
+TODO.md
 data/videos/[^.g]*
 resources/videos/[^.g]*
 dataset/playlist_*

@@ -1,61 +1,74 @@
-from pprint import pprint
-import functools
-import torch
-from torch.utils.data import DataLoader
-import torch.nn.functional as F
-import lightning.pytorch as pl
-from transformers import AutoModelForSequenceClassification, CamembertForMaskedLM, AutoTokenizer, AutoConfig
-from datasets import load_dataset
-from sklearn.metrics import f1_score
-import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly.express as px
-from tqdm.notebook import tqdm
-import pandas as pd
-from datasets import Dataset
-import numpy as np
-import random
-import warnings
 import argparse
-import time
-
+import argparse
+import os, json
+from keyword_extraction import model as ke_model
 from sentence_similiarity import model as ss_model
-from utils import *
 
-# inference using command line
-def run_inference(sentences):
-    model_name = "camembert-base"
-    num_labels = 2
-    lr = models['ss']['lr']
-    weight_decay = models['ss']['weight_decay']
-    max_length = models['ss']['max_length']
+def run_inference_ss(sentences, config):
+    cfg = config['models']['ss']
+    cfg.update({"models_folder": config['models']['models_folder'], "num_labels": 2, "model_name": "camembert-base"})
     from_scratch = False # for inference we load local model
-    model = ss_model.SSLightningModel(model_name, num_labels, lr, weight_decay, max_length, from_scratch=from_scratch)
+    model = ss_model.SSLightningModel(cfg, from_scratch=from_scratch)
     model.to('cuda')
-    inference = model.inference(sentence_1=sentences[0], sentence_2=sentences[1])
-    return inference
+    model.eval()
+    return model.inference(sentence_1=sentences[0], sentence_2=sentences[1])
+
+def run_inference_ke(text, config):
+    from_scratch = False # for inference we load local model
+    cfg = config['models']['ke']
+    cfg.update({"models_folder": config['models']['models_folder'], "num_labels": 3, "model_name": "camembert-base"})
+    model = ke_model.KELightningModel(cfg, from_scratch)
+    model.eval()
+    return extract_keywords(text, model)
+
+def extract_keywords(text, model):
+    # use infer method to get the labels
+    labels = model.infer(text)[0]
+    # get the tokens from the text
+    print(model.config.max_length)
+    tokens = model.tokenizer.tokenize(text,truncation=True, padding=True, max_length=256)
+    # get the keywords from the tokens and labels
+    keywords = []
+    for i in range(len(tokens)):
+        if labels[i] == 1:
+            keyword = tokens[i]
+            for j in range(i+1, len(tokens)):
+                if labels[j] == 2:
+                    keyword += " " + tokens[j]
+                else:
+                    break
+            # convert the keyword to the original string
+            keyword = model.tokenizer.convert_tokens_to_string(model.tokenizer.tokenize(keyword))
+            keywords.append(keyword)
+
+    return keywords
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Inference on a task')
+#text2 = "Je vous avais préparé encore un autre exercice pour s'habituer un petit peu avec les techniques d'enregistrement comptable des opérations commerciales. Vous avez ici un bilan initial, construction 100 mèles euros, client 15 mèles euros, banque 13 mèles euros, caisse 2 mèles euros, au total 130 mèles euros, capital 100 mèles euros, fournisseur 30 mèles euros, total la même chose. Voilà, on a ici un bilan initial, tout simple, et on va essayer de voir un petit peu ce qui est demandé dans l'exercice. Donc ici vous avez les opérations, les opérations que l'entreprise a effectuées, et tout en bas on a un travail à faire. Le travail à faire c'est quoi ? On va effectuer l'ouverture des comptes, on va enregistrer les opérations dans les comptes en T, et puis on va calculer le résultat de l'entreprise, on va établir la balance définitive, et au final établir le bilan final. J'espère bien arriver à un bilan final équilibré. J'essaierai de me concentrer pour que je ne fasse pas d'erreurs, parce que dans ce genre d'exercice, une simple erreur quelque part peut aboutir à un bilan final déséquilibré, c'est-à-dire total actif et différent de total passif."
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Fine-tune a model on a task')
+    parser.add_argument('--task', type=str, default="ke",help='task name: ss or ke')
+    parser.add_argument('--text', type=str, default="Hello",help='text to extract keywords from')
     parser.add_argument('--sentence1', type=str, default="Le chat est sur le tapis.", help='sentence 1 to run inference on')
     parser.add_argument('--sentence2', type=str, default="Le chien est sur le canapé.", help='sentence 2 to run inference on')
+
+    # Load config json
+    root_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
+    os.chdir(root_dir)
+
+    with open("config.json") as f:
+        config = json.load(f)
+        
     args = parser.parse_args()
-    sentences = [args.sentence1, args.sentence2]
+    task = args.task
 
-    time_start = time.time()
-    predicted_label = run_inference(sentences)
-    time_end = time.time()
-    print("Time taken: {} seconds".format(time_end-time_start))
-    print(sentences)
-    print(predicted_label)
-    if predicted_label == 0:
-        print("The sentences are not similar")
-    else:
-        print("The sentences are similar")
-
-if __name__ == '__main__':
-    main()
+    if task == "ss":
+        sentences = [args.sentence1, args.sentence2]
+        print(run_inference_ss(sentences=sentences, config=config))
+    elif task == "ke":
+        text = args.text
+        print(run_inference_ke(text=text, config=config))
 
 
 

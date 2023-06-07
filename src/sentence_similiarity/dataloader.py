@@ -1,24 +1,12 @@
-from pprint import pprint
 import functools
 import torch
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
 import lightning.pytorch as pl
-from transformers import AutoModelForSequenceClassification, CamembertForMaskedLM, AutoTokenizer, AutoConfig
-from datasets import load_dataset
-from sklearn.metrics import f1_score
-import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly.express as px
-from tqdm.notebook import tqdm
+from transformers import AutoTokenizer
 import pandas as pd
 from datasets import Dataset
-import numpy as np
-import random
 import warnings
 warnings.filterwarnings("ignore")
-
-from utils import data
 
 class SSDataModule(pl.LightningDataModule):
     def __init__(self, data, tokenizer, batch_size, max_length):
@@ -29,10 +17,10 @@ class SSDataModule(pl.LightningDataModule):
         self.max_length = max_length
 
     def setup(self, stage=None):
-        # Get the datasets:
-        train = pd.read_csv(self.data['data_folder'] + self.data['PAWS-C-FR']['train'], delimiter='\t', on_bad_lines='skip')
-        dev = pd.read_csv(self.data['data_folder'] + self.data['PAWS-C-FR']['dev'], delimiter='\t', on_bad_lines='skip')
-        test = pd.read_csv (self.data['data_folder'] + self.data['PAWS-C-FR']['test'], delimiter='\t', on_bad_lines='skip')
+        # Get the datasets
+        train = pd.read_csv(self.data['train'], delimiter='\t', on_bad_lines='skip')
+        dev = pd.read_csv(self.data['val'], delimiter='\t', on_bad_lines='skip')
+        test = pd.read_csv (self.data['test'], delimiter='\t', on_bad_lines='skip')
 
         train.drop(columns=['id'], inplace=True)
         dev.drop(columns=['id'], inplace=True)
@@ -83,14 +71,29 @@ class SSDataModule(pl.LightningDataModule):
         return self.loader(self.test_dataset, self.batch_size, shuffle=False)
 
 
-def load_ss(batch_size=16, max_length=128):
+def load_ss(config):
     tokenizer = AutoTokenizer.from_pretrained('camembert-base')
-    batch_size = batch_size
+    batch_size = config['models']['ss']['batch_size']
+    max_length = config['models']['ss']['max_length']
+
+    dpath = config['data']['data_folder']
+    train = dpath + config['data']['SS_DATASET']['train']
+    val = dpath + config['data']['SS_DATASET']['dev']
+    test = dpath + config['data']['SS_DATASET']['test'] 
+
+    data = {
+        "train": train,
+        "val": val,
+        "test": test,
+    }
+
     ss_data_module = SSDataModule(data, tokenizer, batch_size=batch_size, max_length=max_length)
     ss_data_module.setup()
+
     train_dataloader = ss_data_module.train_dataloader()
     val_dataloader = ss_data_module.val_dataloader()
     test_dataloader = ss_data_module.test_dataloader()
+
     print("Train dataset size: ", len(ss_data_module.train_dataset))
     print("Validation dataset size: ", len(ss_data_module.dev_dataset))
     print("Test dataset size: ", len(ss_data_module.test_dataset))
