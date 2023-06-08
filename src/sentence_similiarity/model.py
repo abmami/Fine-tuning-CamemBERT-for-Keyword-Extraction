@@ -19,6 +19,7 @@ class SSLightningModel(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model_name = cfg["model_name"]
+        self.num_labels = cfg["num_labels"]
 
         if from_scratch:
             self.model = AutoModelForSequenceClassification.from_pretrained(
@@ -27,7 +28,7 @@ class SSLightningModel(pl.LightningModule):
             self.config = self.model.config
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         else:
-            model_path = cfg["models_folder"] + "ss/"
+            model_path = cfg["models_folder"] + self.model_name
             config = AutoConfig.from_pretrained(model_path)
             self.tokenizer = AutoTokenizer.from_pretrained(model_path)
             self.model = AutoModelForSequenceClassification.from_config(config).to("cuda")
@@ -95,7 +96,6 @@ class SSLightningModel(pl.LightningModule):
     
 
 def run_trainer(train_dataloader, val_dataloader, test_dataloader, config, from_scratch=False) :
-    print("Running task: ss")
 
     from_scratch = True # will be removed later
     cfg = config['models']['ss']
