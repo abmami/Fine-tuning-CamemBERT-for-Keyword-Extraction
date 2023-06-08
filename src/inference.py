@@ -4,19 +4,29 @@ import os, json
 from keyword_extraction import model as ke_model
 from sentence_similiarity import model as ss_model
 
-def run_inference_ss(sentences, config):
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.chdir(root_dir)
+
+def run_inference_ss(sentences):
+
+    with open("config.json") as f:
+        config = json.load(f)
     cfg = config['models']['ss']
-    cfg.update({"models_folder": config['models']['models_folder'], "num_labels": 2, "model_name": "camembert-base"})
+    cfg.update({"models_folder": config['models']['models_folder'], "num_labels": 2, "model_name": "camembert-ss"})
     from_scratch = False # for inference we load local model
     model = ss_model.SSLightningModel(cfg, from_scratch=from_scratch)
     model.to('cuda')
     model.eval()
     return model.inference(sentence_1=sentences[0], sentence_2=sentences[1])
 
-def run_inference_ke(text, config):
+def run_inference_ke(text):
+
+    with open("config.json") as f:
+        config = json.load(f)
+
     from_scratch = False # for inference we load local model
     cfg = config['models']['ke']
-    cfg.update({"models_folder": config['models']['models_folder'], "num_labels": 3, "model_name": "camembert-base"})
+    cfg.update({"models_folder": config['models']['models_folder'], "num_labels": 3, "model_name": "camembert-ke"})
     model = ke_model.KELightningModel(cfg, from_scratch)
     model.eval()
     return extract_keywords(text, model)
@@ -52,23 +62,16 @@ if __name__ == "__main__":
     parser.add_argument('--text', type=str, default="Hello",help='text to extract keywords from')
     parser.add_argument('--sentence1', type=str, default="Le chat est sur le tapis.", help='sentence 1 to run inference on')
     parser.add_argument('--sentence2', type=str, default="Le chien est sur le canapé.", help='sentence 2 to run inference on')
-
-    # Load config json
-    root_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
-    os.chdir(root_dir)
-
-    with open("config.json") as f:
-        config = json.load(f)
         
     args = parser.parse_args()
     task = args.task
 
     if task == "ss":
         sentences = [args.sentence1, args.sentence2]
-        print(run_inference_ss(sentences=sentences, config=config))
+        print(run_inference_ss(sentences=sentences))
     elif task == "ke":
         text = args.text
-        print(run_inference_ke(text=text, config=config))
+        print(run_inference_ke(text=text))
 
 
 

@@ -7,9 +7,11 @@ from transformers import AutoTokenizer
 from sklearn.metrics import f1_score
 import pandas as pd
 from torch.optim import Adam
-from utils import data, models
+import os 
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+
 class KELightningModel(pl.LightningModule):
-    def __init__(self, cfg, from_scratch):
+    def __init__(self, cfg, from_scratch, inference=False):
         super().__init__()
         self.save_hyperparameters()
         self.model_name = cfg["model_name"]
@@ -27,16 +29,15 @@ class KELightningModel(pl.LightningModule):
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             
         else:
-            model_path = cfg["models_folder"] + "ke/"
+            model_path = cfg["models_folder"] + self.model_name  
             # load model from pt file
-            self.model = AutoModelForTokenClassification.from_pretrained(model_path).to("cuda")
+            self.model = AutoModelForTokenClassification.from_pretrained(model_path, num_labels=self.num_labels).to("cuda")
             # load tokenizer from folder
             self.tokenizer = AutoTokenizer.from_pretrained(model_path)
             # load config from folder
             self.config = AutoConfig.from_pretrained(model_path)
+
             
-
-
     def forward(self, input_ids, attention_mask, labels):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
 
@@ -46,7 +47,7 @@ class KELightningModel(pl.LightningModule):
         self.log('train_loss', loss)
         acc = (outputs.logits.argmax(-1) == batch['labels']).float().mean()
         self.log('train_acc', acc)
-        f1 = f1_score(batch['labels'].cpu().numpy().flatten(), outputs.logits.argmax(-1).cpu().numpy().flatten(), average='macro')
+        f1 = f1_score(batch['labels'].detach().cpu().numpy().flatten(), outputs.logits.argmax(-1).detach().cpu().numpy().flatten(), average='macro')
         self.log('train_f1', f1)
         return loss
 
@@ -54,7 +55,7 @@ class KELightningModel(pl.LightningModule):
         outputs = self.forward(batch['input_ids'], batch['attention_mask'], batch['labels'])
         loss = outputs.loss
         acc = (outputs.logits.argmax(-1) == batch['labels']).float().mean()
-        f1 = f1_score(batch['labels'].cpu().numpy().flatten(), outputs.logits.argmax(-1).cpu().numpy().flatten(), average='macro')
+        f1 = f1_score(batch['labels'].detach().cpu().numpy().flatten(), outputs.logits.argmax(-1).detach().cpu().numpy().flatten(), average='macro')
         self.log('val_loss', loss)
         self.log('val_acc', acc)
         self.log('val_f1', f1)
@@ -88,13 +89,10 @@ class KELightningModel(pl.LightningModule):
     
 
 def run_trainer(train_dataloader, val_dataloader, test_dataloader, config, from_scratch):
-    print("Running task: ke")
-    epochs = config['models']['ke']['epochs']
-    accumulate_grad_batches = config['models']['ke']['accumulate_grad_batches']
-    cfg = config['models']['ke']
-    cfg.update({"models_folder": config['models']['models_folder'], "num_labels": 3, "model_name": "camembert-base"})
 
-    model = KELightningModel(cfg, from_scratch)
+    epochs = config['epochs']
+    accumulate_grad_batches = config['accumulate_grad_batches']
+    model = KELightningModel(config, from_scratch)
     trainer = pl.Trainer(accelerator='auto', max_epochs=epochs, devices=[0], accumulate_grad_batches=accumulate_grad_batches)
     trainer.fit(model, train_dataloader, val_dataloader)
     trainer.test(model, test_dataloader)
