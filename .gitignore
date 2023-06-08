@@ -23,8 +23,8 @@ results
 lightning_logs
 trash
 blabla.md
-models/ss
-models/ke
+models/*
+
 # C extensions
 *.so
 
