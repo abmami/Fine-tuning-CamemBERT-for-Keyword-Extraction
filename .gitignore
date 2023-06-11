@@ -12,8 +12,12 @@ data/videos/[^.g]*
 resources/videos/[^.g]*
 dataset/playlist_*
 data/final-keys-dataset
-data/KEYS-DATASET/docsutf8/*.txt
-data/KEYS-DATASET/keys/*.key
+keyword_extraction/data/KEYS-DATASET/docsutf8
+keyword_extraction/data/KEYS-DATASET/keys
+keyword_extraction/data/WKC
+keyword_extraction/models/camembert-ke/
+keyword_extraction/models/camembert-ss-ke/
+sentence_similarity/models/camembert-ss/
 data/temp-keys-dataset
 runs
 venv

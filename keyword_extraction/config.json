@@ -1,0 +1,18 @@
+{
+    "data_folder": "data/",
+    "dataset_name": "KEYS-DATASET",
+    "task_name": "ke",
+    "train": "keyword_extraction/data/KEYS-DATASET/train.csv",
+    "val": "keyword_extraction/data/KEYS-DATASET/val.csv",
+    "test": "keyword_extraction/data/KEYS-DATASET/test.csv",
+    "models_folder": "models/",
+    "model_name": "camembert-base",
+    "num_labels":3,
+    "epochs": 1,
+    "lr": 2e-5,
+    "batch_size": 4,
+    "accumulate_grad_batches": 10,
+    "max_length": 256,
+    "eps": 1e-8,
+    "betas": "(0.9, 0.999)"
+}

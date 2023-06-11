@@ -1,0 +1,17 @@
+{
+  "data_folder": "data/",
+  "dataset_name": "PAWS-C-FR",
+  "task_name": "ss",
+  "train": "sentence_similarity/data/PAWS-C-FR/translated_train.tsv",
+  "val": "sentence_similarity/data/PAWS-C-FR/dev_2k.tsv",
+  "test": "sentence_similarity/data/PAWS-C-FR/test_2k.tsv",
+  "models_folder": "models/",
+  "model_name": "camembert-base",
+  "num_labels":2,
+  "epochs": 10,
+  "lr": 3e-5,
+  "batch_size": 16,
+  "accumulate_grad_batches": 20,
+  "max_length": 128,
+  "weight_decay": 0.01 
+}

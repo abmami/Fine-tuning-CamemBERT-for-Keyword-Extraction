@@ -18,13 +18,11 @@ show_quantize_menu() {
 option1() {
     show_quantize_menu
     read -p "Enter your choice: " quantize_choice
-    cd src 
-    python preprocess.py
     python run_task.py --task ss
     python run_task.py --task ss-ke
     case $quantize_choice in
         1)
-            python quantize.py --task ss-ke
+            python quantize.py --model "camembert-ss-ke"
             echo "Finished..."
             break
             ;;
@@ -42,11 +40,10 @@ option1() {
 option2() {
     show_quantize_menu
     read -p "Enter your choice: " quantize_choice
-    cd src
     python run_task.py --task ke
     case $quantize_choice in
         1)
-            python quantize.py --task ke
+            python quantize.py --model "camembert-ke"
             echo "Finished..."
             break
             ;;
