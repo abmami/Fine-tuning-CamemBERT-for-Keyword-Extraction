@@ -11,28 +11,22 @@ In this streamlined approach, we directly fine-tune CamemBERT for the keyword ex
 
 ## Datasets
 
-## Training
+The datasets are available in the `data` folder for each approach.
 
-Table summarizing the training parameters for each approach.
-
-| Approach | Pre-training | Pre-finetuning Task | Pre-finetuning Params | Fine-tuning Task | Fine-tuning Params 
-| --- | --- | --- | --- | --- | --- |
-| Approach 1 | camembert-base | SST | "epochs": 3, "lr": 3e-5, "batch_size": 4, "accumulate_grad_batches": 8, "max_length": 128 | KWE | "epochs": 3, "lr": 2e-5, "batch_size": 4, "accumulate_grad_batches": 8, "max_length": 256, "eps": 1e-8, "betas": "(0.9, 0.999)" |
-| Approach 2 | camembert-base | None | None | KWE | "epochs": 3, "lr": 2e-5, "batch_size": 4, "accumulate_grad_batches": 8, "max_length": 256, "eps": 1e-8, "betas": "(0.9, 0.999)"  |
+- `KEYS-DATASET`: This folder contains the final dataset used for training and validation. It was collected from transcribed YouTube videos and merged with WikiNews french keywords dataset for data augmentation. The dataset contains ~340 documents.
+- `PAWS-C-FR`: This folder contains the PAWS-X french dataset used for pre-fine-tuning CamemBERT on Sentences similiary task. The dataset contains 3 files: `translated_train.tsv`, `test_2k.tsv`, and `dev_2k`. Each file contains 3 columns: `id`, `sentence1`, and `sentence2`. The `sentence1` column contains the first sentence, the `sentence2` column contains the second sentence, and the `label` column contains the label (0 or 1). 
 
 ## Results
 
 Table summarizing the results for each approach.
-
 | Approach | Training Sequence | Quantized | Test Accuracy | Test F1 Score |
 | --- | --- | --- | --- | --- |
-| Approach 1 | SST -> KWE | No | - | - |
-| Approach 1 | SST -> KWE | Yes | - | - |
-| Approach 2 | KWE | No | - | - |
-| Approach 2 | KWE | Yes | - | - |
+| Approach 1 | SS -> KE | No | 0.98 | - |
+| Approach 1 | SS -> KE | Yes | - | - |
+| Approach 2 | KE | No | - | - |
+| Approach 2 | KE | Yes | - | - |
 
 Note : 
-
 This project aims to showcase the effectiveness of pre-finetuning CamemBERT on a sentence similarity task before fine-tuning it for keyword extraction. Please note that several factors, such as the choice of datasets, fine-tuning parameters, and computational resources, can impact the model's performance. The presented results serve as a general demonstration of the proposed approaches rather than definitive conclusions. To enhance the model's performance, one can conduct further experiments with different configurations. Due to limited computational resources, we were unable to conduct extensive optimization experiments. The project ensures reproducibility and provides automated scripts for running the experiments.
 
 ## Run Locally
@@ -49,40 +43,41 @@ To install the required packages, run the following command:
 ```
 pip install -r requirements.txt
 ```
+### Training
+Run the script with the desired approach and task:
 
-### Usage
-
-#### Training
-We provide two notebooks to run different approaches to fine-tuning CamemBERT for keyword extraction. The notebooks are self-contained and can be run directly from Google Colab. The notebooks are also available in the `notebooks` folder of this repository.
-
-To run pipeline for Approach 1, run the following commands:
 ```shell
-cd src
-python preprocess.py
-python run_task.py --task ss
-python run_task.py --task ss-ke
+python train.py --task <task-name>
 ```
-The `preprocess.py` script will generate the data for the sentence similarity task. It's output will be saved in the `data` folder, and it's only required to run once.
+Replace <task-name> with "ss" for sentence similarity, "ke" for keyword extraction, or "ss-ke" to fine-tune the pre-finetuned CamemBERT model on keyword extraction.
+The script will load the necessary configurations and data for the specified task and start the fine-tuning process. After fine-tuning, the model will be saved in the respective "models" directory.
 
-To run pipeline for Approach 2, run the following commands:
+### Quantization
+
+Run the quantization script:
+
 ```shell
-cd src
-python run_task.py --task ke
+python qunatize.py [--model "model-name"]
 ```
+Optional: Specify the "--model" argument to choose the model to quantize. Available options are "camembert-ss-ke" and "camembert-ke". By default, "camembert-ke" is used. 
 
-For both approaches, the models are saved in the `models` folder. 
+The script will load the specified pre-trained model, perform dynamic quantization, and save the quantized model. The quantized model will be saved in the respective model directory with the name "quantized_model.pt".
 
-#### Inference
+### Inference
+**Using demo app**
 
-For inference, we provide a demo app that can be run locally. To run the demo app, run the following commands:
+We provide a demo app that can be run locally. To launch the demo app, run the following commands:
 ```shell
-cd src
 streamlit run demo.py
 ```
 
+**Using script**
+
 We also provide a script to run inference on a single sample. To run inference on a single sample, run the following commands:
 ```shell
-cd src
-python inference.py --text "text to extract keywords from"
+python inference.py --text "input-text" [--model "model-name"]
 ```
+Replace "input-text" with the text for which you want to extract keywords.
+Optional: Specify the "--model" argument to choose the model for inference. Available options are "camembert-ss-ke" and "camembert-ke". By default, "camembert-ke" is used.
 
+The script will perform keyword extraction on the provided text using the specified model and display the extracted keywords.
